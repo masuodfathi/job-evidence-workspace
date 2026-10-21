@@ -1,0 +1,18 @@
+# Ignore the project's virtual environment.
+.venv/
+
+# Ignore generated Python cache files.
+__pycache__/
+*.py[cod]
+
+# Ignore local environment settings.
+.env
+.env.*
+!.env.example
+
+# Ignore local SQLite databases.
+*.sqlite3
+*.sqlite3-*
+
+# Ignore pytest cache files.
+.pytest_cache/
