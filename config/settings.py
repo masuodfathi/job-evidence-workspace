@@ -74,9 +74,18 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        # Use Django's PostgreSQL backend.
+        "ENGINE": "django.db.backends.postgresql",
+
+        # Match the database credentials in compose.yaml.
+        "NAME": "job_evidence",
+        "USER": "job_evidence",
+        "PASSWORD": "local_dev_password",
+
+        # Connect through the port Docker exposes on this computer.
+        "HOST": "127.0.0.1",
+        "PORT": "5432",
     }
 }
 
