@@ -1,0 +1,21 @@
+services:
+  db:
+    # Use PostgreSQL 17 as our database server.
+    image: postgres:17
+
+    environment:
+      # These credentials are for local development only.
+      POSTGRES_DB: job_evidence
+      POSTGRES_USER: job_evidence
+      POSTGRES_PASSWORD: local_dev_password
+
+    ports:
+      # Allow connections only from this computer.
+      - "127.0.0.1:5432:5432"
+
+    volumes:
+      # Preserve database files when the container is recreated.
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
