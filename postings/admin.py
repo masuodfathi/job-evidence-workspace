@@ -1,3 +1,7 @@
 from django.contrib import admin
 
-# Register your models here.
+from .models import Posting
+
+
+# Make job postings available in Django's admin interface.
+admin.site.register(Posting)
