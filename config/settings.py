@@ -39,6 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'health.apps.HealthConfig',
     'postings.apps.PostingsConfig',
+    # Enable Django REST Framework's app resources.
+    "rest_framework",
 ]
 
 MIDDLEWARE = [
