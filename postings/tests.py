@@ -301,3 +301,109 @@ class PostingCreateTests(APITestCase):
 
         self.assertNotEqual(response_data["created_at"], payload["created_at"])
         self.assertNotEqual(response_data["id"], payload["id"])
+
+class PostingSearchTests(APITestCase):
+    def test_search_matches_title_without_case_sensitivity(self):
+        # Create a posting whose title matches the search.
+        matching_posting = Posting.objects.create(
+            title="Python Backend Developer",
+            company_name="Demo Company",
+            description="Build backend services.",
+            source_url="https://example.com/jobs/python",
+        )
+
+        # Mention Python only in the description, not in the title.
+        Posting.objects.create(
+            title="Frontend Developer",
+            company_name="Demo Company",
+            description="Collaborate with the Python backend team.",
+            source_url="https://example.com/jobs/frontend",
+        )
+
+        # Search with different letter casing and surrounding spaces.
+        response = self.client.get(
+            "/api/v1/postings/",
+            {"search": "  pYtHoN  "},
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response_data = response.json()
+
+        # Only the posting with a matching title should be returned.
+        self.assertEqual(response_data["count"], 1)
+        self.assertEqual(
+            [posting["id"] for posting in response_data["results"]],
+            [matching_posting.pk],
+        )
+
+    def test_search_without_matches_returns_empty_results(self):
+        # Keep a posting in the database that does not match the search.
+        Posting.objects.create(
+            title="Frontend Developer",
+            company_name="Demo Company",
+            description="Build web interfaces.",
+            source_url="https://example.com/jobs/frontend",
+        )
+
+        # Search for a title that does not exist.
+        response = self.client.get(
+            "/api/v1/postings/",
+            {"search": "Python"},
+            HTTP_ACCEPT="application/json",
+        )
+
+        # No matches is a successful search, not a missing endpoint.
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.json(),
+            {
+                "count": 0,
+                "next": None,
+                "previous": None,
+                "results": [],
+            },
+        )
+
+    def test_search_filters_before_pagination(self):
+        # Create an older posting that matches the search.
+        matching_posting = Posting.objects.create(
+            title="Python Backend Developer",
+            company_name="Demo Company",
+            description="Build Python APIs.",
+            source_url="https://example.com/jobs/python",
+        )
+
+        # Make its timestamp explicitly older than the other postings.
+        Posting.objects.filter(pk=matching_posting.pk).update(
+            created_at=timezone.now() - timedelta(days=1),
+        )
+
+        # Create 20 newer postings whose titles do not match.
+        for index in range(20):
+            Posting.objects.create(
+                title=f"Frontend Developer {index}",
+                company_name="Demo Company",
+                description="Build web interfaces.",
+                source_url=f"https://example.com/jobs/frontend-{index}",
+            )
+
+        # Search on the first page.
+        response = self.client.get(
+            "/api/v1/postings/",
+            {"search": "Python"},
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response_data = response.json()
+
+        # The older matching posting must appear on the first search page.
+        self.assertEqual(response_data["count"], 1)
+        self.assertIsNone(response_data["next"])
+        self.assertIsNone(response_data["previous"])
+        self.assertEqual(
+            [posting["id"] for posting in response_data["results"]],
+            [matching_posting.pk],
+        )

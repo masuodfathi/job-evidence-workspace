@@ -27,6 +27,13 @@ def posting_list(request):
     # Define a consistent order before selecting a page.
     postings = Posting.objects.order_by("-created_at", "-id")
 
+    # Read the optional search parameter and remove surrounding whitespace.
+    search = request.query_params.get("search", "").strip()
+
+    if search:
+        # Filter titles without case sensitivity.
+        postings = postings.filter(title__icontains=search)
+
     # Return at most 20 postings per page.
     paginator = PageNumberPagination()
     paginator.page_size = 20
