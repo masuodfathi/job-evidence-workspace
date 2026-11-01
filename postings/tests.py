@@ -110,3 +110,139 @@ class PostingListTests(APITestCase):
 
         self.assertEqual(returned_ids,[newer_posting.pk, older_posting.pk],
         )
+
+class PostingCreateTests(APITestCase):
+    def test_missing_title_returns_400_without_creating_posting(self):
+        # Prepare input that is missing the required title.
+        payload = {
+            "title": "",
+            "company_name": "Demo Company",
+            "description": "This request must not create a posting.",
+            "source_url": "https://example.com/jobs/invalid",
+        }
+
+        # Record the number of postings before the request.
+        count_before = Posting.objects.count()
+
+        # Send the payload as JSON.
+        response = self.client.post(
+            "/api/v1/postings/",
+            payload,
+            format="json",
+        )
+
+        # Verify that validation rejected the request.
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn("title", response.json())
+
+        # Verify that the request did not create a database record.
+        self.assertEqual(Posting.objects.count(), count_before)
+
+    def test_missing_title_returns_400_without_creating_posting(self):
+            # Prepare input that is missing the required title.
+            payload = {
+                "title": "Software Engineer Intern",
+                "company_name": "",
+                "description": "This request must not create a posting.",
+                "source_url": "https://example.com/jobs/invalid",
+            }
+    
+            # Record the number of postings before the request.
+            count_before = Posting.objects.count()
+    
+            # Send the payload as JSON.
+            response = self.client.post(
+                "/api/v1/postings/",
+                payload,
+                format="json",
+            )
+    
+            # Verify that validation rejected the request.
+            self.assertEqual(
+                response.status_code,
+                status.HTTP_400_BAD_REQUEST,
+            )
+            self.assertIn("company_name", response.json())
+    
+            # Verify that the request did not create a database record.
+            self.assertEqual(Posting.objects.count(), count_before)
+
+    def test_valid_input_creates_posting(self):
+        # Prepare valid input for a new posting.
+        payload = {
+            "title": "Python API Developer",
+            "company_name": "Demo Company",
+            "description": "Develop and test backend APIs.",
+            "source_url": "https://example.com/jobs/python-api",
+        }
+
+        count_before = Posting.objects.count()
+
+        # Send a JSON request to create the posting.
+        response = self.client.post(
+            "/api/v1/postings/",
+            payload,
+            format="json",
+        )
+
+        # Verify successful creation and exactly one new record.
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+        self.assertEqual(Posting.objects.count(), count_before + 1)
+
+        # Retrieve the actual record using the ID returned by the API.
+        response_data = response.json()
+        saved_posting = Posting.objects.get(pk=response_data["id"])
+
+        # Verify that every submitted value was stored correctly.
+        for field, expected_value in payload.items():
+            with self.subTest(field=field):
+                self.assertEqual(getattr(saved_posting, field), expected_value)
+
+        # Verify that the API returned the submitted values too.
+        for field, expected_value in payload.items():
+            with self.subTest(response_field=field):
+                self.assertEqual(
+                    response_data[field],
+                    expected_value,
+                )
+
+    def test_client_cannot_set_read_only_fields(self):
+        # Attempt to provide values for system-managed fields.
+        payload = {
+            "id": 999999,
+            "title": "Backend Developer",
+            "company_name": "Demo Company",
+            "description": "Build backend services.",
+            "source_url": "https://example.com/jobs/backend",
+            "created_at": "2000-01-01T00:00:00Z",
+        }
+
+        response = self.client.post(
+            "/api/v1/postings/",
+            payload,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        # Read the saved record using the server-generated ID.
+        response_data = response.json()
+        saved_posting = Posting.objects.get(pk=response_data["id"])
+
+        # Confirm that the database generated the ID.
+        self.assertNotEqual(saved_posting.pk, payload["id"])
+
+        # Confirm that Django generated the creation timestamp.
+        self.assertNotEqual(saved_posting.created_at.year, 2000)
+
+        self.assertNotEqual(response_data["created_at"], payload["created_at"])
+        self.assertNotEqual(response_data["id"], payload["id"])
