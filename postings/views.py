@@ -2,6 +2,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from rest_framework import status
+from rest_framework.pagination import PageNumberPagination
 
 from .models import Posting
 from .serializers import PostingSerializer
@@ -23,14 +24,21 @@ def posting_list(request):
             # Return the newly created posting with a 201 status code.
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
-    # Read postings in a consistent order, with the newest first.
+    # Define a consistent order before selecting a page.
     postings = Posting.objects.order_by("-created_at", "-id")
 
-    # Convert multiple model instances into API-friendly data.
-    serializer = PostingSerializer(postings, many=True)
+    # Return at most 20 postings per page.
+    paginator = PageNumberPagination()
+    paginator.page_size = 20
 
-    # Return the serialized data as an API response.
-    return Response(serializer.data)
+    # Select this page's records using a database-level limit.
+    page = paginator.paginate_queryset(postings, request)
+
+    # Serialize only the records selected for this page.
+    serializer = PostingSerializer(page, many=True)
+
+    # Include the total count and navigation links in the response.
+    return paginator.get_paginated_response(serializer.data)
 
 @api_view(["GET"])
 def posting_detail(request, pk):

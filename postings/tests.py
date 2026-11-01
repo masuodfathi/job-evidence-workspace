@@ -69,7 +69,13 @@ class PostingListTests(APITestCase):
 
         # An empty collection is still a successful response.
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json(), [])
+        self.assertEqual(response.json(), {
+            "count": 0,
+            "next": None,
+            "previous": None,
+            "results": [],
+            },
+        )
 
     def test_postings_are_returned_newest_first(self):
         # Create two fictional postings in the test database.
@@ -106,10 +112,59 @@ class PostingListTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Verify that the newer posting appears before the older one.
-        returned_ids = [posting["id"] for posting in response.json()]
+        returned_ids = [posting["id"] for posting in response.json()['results']]
 
         self.assertEqual(returned_ids,[newer_posting.pk, older_posting.pk],
         )
+
+    def test_postings_are_split_across_pages(self):
+        
+        # Create enough postings to require two pages.
+        for index in range(21):
+            Posting.objects.create(
+                title=f"Backend Developer {index}",
+                company_name="Demo Company",
+                description="Build backend services.",
+                source_url=f"https://example.com/jobs/{index}",
+            )
+
+        # Request the first page.
+        first_response = self.client.get(
+            "/api/v1/postings/",
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        first_page = first_response.json()
+
+        # Verify the total count, page size, and navigation.
+        self.assertEqual(first_page["count"], 21)
+        self.assertEqual(len(first_page["results"]), 20)
+        self.assertIsNone(first_page["previous"])
+        self.assertIsNotNone(first_page["next"])
+
+        # Request the second page.
+        second_response = self.client.get(
+            "/api/v1/postings/",
+            {"page": 2},
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(second_response.status_code, status.HTTP_200_OK)
+        second_page = second_response.json()
+
+        # Only one posting should remain on the final page.
+        self.assertEqual(second_page["count"], 21)
+        self.assertEqual(len(second_page["results"]), 1)
+        self.assertIsNotNone(second_page["previous"])
+        self.assertIsNone(second_page["next"])
+
+        # Verify that the pages contain every posting exactly once.
+        returned_ids = [posting["id"] for posting in first_page["results"] + second_page["results"]]
+        expected_ids = set(Posting.objects.values_list("pk", flat=True))
+
+        self.assertEqual(len(returned_ids), len(set(returned_ids)))
+        self.assertEqual(set(returned_ids), expected_ids)
 
 class PostingCreateTests(APITestCase):
     def test_missing_title_returns_400_without_creating_posting(self):
